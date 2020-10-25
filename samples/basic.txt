@@ -1,0 +1,19 @@
+{##
+ # this is the module's doc comment
+ #}
+
+# this is regular line comment to be dropped in parsing
+
+{## 
+ # this is the doc comment for  `doXXX()`
+ #}
+method doXXX() pass
+
+{#
+ # this is regular block comment to be dropped in parsing
+ #}
+
+{## 
+ # this is the doc comment for  `doYYY()`
+ #}
+method doYYY() pass
