@@ -1,0 +1,72 @@
+
+# whitespaces at start-of-file
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{#
+ # this is non-doc, block comment to be dropped in parsing and 
+ # doesn't render the module as without module doc
+ #}
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+# this is non-doc, line comment to be dropped in parsing and 
+# doesn't render the module as without module doc
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{##
+ # this is the module's doc comment
+ #}
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+# this is regular line comment to be dropped in parsing
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{##
+ # this is mis-placed doc comment, effective for no artifact, and
+ # to be dropped in parsing
+ #}
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{##
+ # this is the doc comment for `doXXX()`
+ #}
+method doXXX() pass
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{#
+ # this is regular block comment to be dropped in parsing
+ #}
+
+{## 
+ # this is the doc comment for `doYYY()`
+ #}
+method doYYY() pass
+
+;
+; # semicolons are allowed here and otherwheres
+;
+
+{##
+ # this is doc comment for nothing, to be dropped in parsing
+ #}
+# whitespaces at eof

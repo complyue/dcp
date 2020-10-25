@@ -26,10 +26,10 @@ type Parser = ParsecT Void Text Identity
 
 
 optionalComma :: Parser Bool
-optionalComma = fromMaybe False <$> optional (True <$ string ",")
+optionalComma = fromMaybe False <$> optional (True <$ char ',')
 
 optionalSemicolon :: Parser Bool
-optionalSemicolon = fromMaybe False <$> optional (True <$ string ";")
+optionalSemicolon = fromMaybe False <$> optional (True <$ char ';')
 
 
 sc :: Parser ()
@@ -44,19 +44,17 @@ sc =
 docComments :: Parser (Maybe [Text])
 docComments = findIt
  where
-  -- consumer of whitespaces except block comment
-  nbsc   = L.space space1 (L.skipLineComment "#") empty
+  -- consumer of whitespaces except block comment, plus optional semicolons
+  nbsc   = L.space space1 (L.skipLineComment "#") (void $ char ';')
 
-  findIt = do
-    -- ignore leading whitespaces and an optional semicolon in between
-    nbsc >> optionalSemicolon >> nbsc
-    -- try get a doc comment block
-    getIt >>= \case
-      Nothing -> optional (L.skipBlockCommentNested "{#" "#}") >>= \case
-        -- there may be a block comment following
-        Nothing -> return Nothing -- no, we are sure there's no doc cmt
-        Just{}  -> findIt -- try again after a block comment consumed
-      gotCmt@Just{} -> return gotCmt -- got doc comment
+  -- ignore leading whitespaces and optional semicolons in between,
+  -- then try get a doc comment block
+  findIt = nbsc >> getIt >>= \case
+    Nothing -> optional (L.skipBlockCommentNested "{#" "#}") >>= \case
+      -- there may be a block comment following
+      Nothing -> return Nothing -- no, we are sure there's no doc cmt
+      Just{}  -> findIt -- try again after a block comment consumed
+    gotCmt@Just{} -> return gotCmt -- got doc comment
 
   getIt = optional (string "{##") >>= \case
     Nothing -> return Nothing
@@ -134,15 +132,18 @@ type ArtCmt = [Text]
 moduleDecl :: Parser ModuleDecl
 moduleDecl = do
   moduCmt <- docComments
-  arts    <- many artifactDecl
+  arts    <- manyTill artifactDecl eof
   return (moduCmt, arts)
 
 artifactDecl :: Parser ArtDecl
 artifactDecl = do
-  notFollowedBy eof
-  artCmt  <- immediateDocComments
-  artBody <- takeWhileP (Just "artifact body") (/= '{')
-  return (artCmt, artBody)
+  artCmt <- immediateDocComments
+  (eof >> empty) <|> do
+    artBody <- takeWhileP (Just "artifact body")
+                          (not . flip elem (";{" :: [Char]))
+    if T.null $ T.strip artBody
+      then empty -- this is not possible in real cases
+      else return (artCmt, artBody)
 
 
 parseModule :: Text -> ModuleDecl
