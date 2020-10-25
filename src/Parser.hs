@@ -26,10 +26,10 @@ type Parser = ParsecT Void Text Identity
 
 
 optionalComma :: Parser Bool
-optionalComma = fromMaybe False <$> optional (True <$ symbol ",")
+optionalComma = fromMaybe False <$> optional (True <$ string ",")
 
 optionalSemicolon :: Parser Bool
-optionalSemicolon = fromMaybe False <$> optional (True <$ symbol ";")
+optionalSemicolon = fromMaybe False <$> optional (True <$ string ";")
 
 
 sc :: Parser ()
@@ -139,6 +139,7 @@ moduleDecl = do
 
 artifactDecl :: Parser ArtDecl
 artifactDecl = do
+  notFollowedBy eof
   artCmt  <- immediateDocComments
   artBody <- takeWhileP (Just "artifact body") (/= '{')
   return (artCmt, artBody)
