@@ -22,51 +22,39 @@ import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
 
 
+type DocComment = [Text]
+
+
 type Parser = ParsecT Void Text Identity
 
 
-optionalComma :: Parser Bool
-optionalComma = fromMaybe False <$> optional (True <$ char ',')
-
-optionalSemicolon :: Parser Bool
-optionalSemicolon = fromMaybe False <$> optional (True <$ char ';')
-
-
 sc :: Parser ()
-sc =
-  L.space space1 (L.skipLineComment "#") (L.skipBlockCommentNested "{#" "#}")
+sc = L.space space1 (L.skipLineComment "#") edhSkipBlockCommentNested
+
+edhSkipBlockCommentNested :: Parser ()
+edhSkipBlockCommentNested =
+  try (string "{#" >> notFollowedBy (char '#')) >> void
+    (manyTill (L.skipBlockCommentNested "{#" "#}" <|> void anySingle)
+              (string "#}")
+    )
 
 -- | doc comment must start with "{##", this will return effective lines of
--- the comment or Nothing if none there.
---
--- note whitespaces and a semicolon will be consumed (i.e. no back tracking),
--- even when Nothing is returned.
-docComments :: Parser (Maybe [Text])
-docComments = findIt
+-- the comment
+docComment :: Parser DocComment
+docComment = do
+  void $ string "{##"
+  -- treat the 1st line specially
+  s          <- getInput
+  o          <- getOffset
+  (o', done) <- findEoL
+  let line     = maybe "" fst $ takeN_ (o' - o) s
+      cumLines = [ line | not $ T.null $ T.strip line ]
+  if done
+    then do
+      void sc
+      return $! cumLines
+    else cmtLines cumLines
  where
-  -- consumer of whitespaces except block comment, plus optional semicolons
-  nbsc   = L.space space1 (L.skipLineComment "#") (void $ char ';')
-
-  -- ignore leading whitespaces and optional semicolons in between,
-  -- then try get a doc comment block
-  findIt = nbsc >> getIt >>= \case
-    Nothing -> optional (L.skipBlockCommentNested "{#" "#}") >>= \case
-      -- there may be a block comment following
-      Nothing -> return Nothing -- no, we are sure there's no doc cmt
-      Just{}  -> findIt -- try again after a block comment consumed
-    gotCmt@Just{} -> return gotCmt -- got doc comment
-
-  getIt = optional (string "{##") >>= \case
-    Nothing -> return Nothing
-    Just{}  -> do
-      -- treat the 1st line specially
-      s          <- getInput
-      o          <- getOffset
-      (o', done) <- findEoL
-      let line     = maybe "" fst $ takeN_ (o' - o) s
-          cumLines = if T.null $ T.strip line then [] else [line]
-      if done then return $ Just $! cumLines else Just <$> cmtLines cumLines
-
   cmtLines :: [Text] -> Parser [Text]
   cmtLines cumLines = do
     s          <- getInput
@@ -74,8 +62,14 @@ docComments = findIt
     (o', done) <- findEoL
     let line = maybe "" fst $ takeN_ (o' - o) s
     if done
-      then return $! reverse
-        (if T.null (T.strip line) then cumLines else cmtLine line : cumLines)
+      then do
+        void sc
+        return
+          $! reverse
+               (if T.null (T.strip line)
+                 then cumLines
+                 else cmtLine line : cumLines
+               )
       else cmtLines $ cmtLine line : cumLines
 
   findEoL :: Parser (Int, Bool)
@@ -95,25 +89,33 @@ docComments = findIt
 
 -- | get the doc comment immediately before next non-whitespace lexeme, return
 -- the last one if multiple consecutive doc comment blocks present.
---
--- note whitespaces will be consumed without back tracking anyway.
-immediateDocComments :: Parser (Maybe [Text])
-immediateDocComments = docComments >>= moreAfter
+immediateDocComment :: Parser DocComment
+immediateDocComment = docComment >>= moreAfter
  where
-  moreAfter Nothing = return Nothing
-  moreAfter !gotCmt = docComments >>= \case
-    Nothing        -> return gotCmt
-    gotMore@Just{} -> moreAfter gotMore
+  moreAfter !gotCmt =
+    (try (scWithSemiColons >> docComment) >>= moreAfter) <|> return gotCmt
 
 
-lexeme :: Parser a -> Parser a
-lexeme = (sc *>)
+scWithSemiColons :: Parser ()
+scWithSemiColons = L.space (space1 <|> void (char ';'))
+                           (L.skipLineComment "#")
+                           edhSkipBlockCommentNested
+
 
 symbol :: Text -> Parser Text
-symbol = lexeme . string
+symbol = L.symbol sc
+
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
 
 keyword :: Text -> Parser Text
-keyword !kw = try $ lexeme (string kw <* notFollowedBy (satisfy isIdentChar))
+keyword kw = try $ lexeme (string kw <* notFollowedBy (satisfy isIdentChar))
+
+optionalComma :: Parser Bool
+optionalComma = fromMaybe False <$> optional (True <$ symbol ",")
+
+optionalSemicolon :: Parser Bool
+optionalSemicolon = fromMaybe False <$> optional (True <$ symbol ";")
 
 
 isIdentStart :: Char -> Bool
@@ -123,21 +125,20 @@ isIdentChar :: Char -> Bool
 isIdentChar c = c == '_' || c == '\'' || Char.isAlphaNum c
 
 
-type ModuleDecl = (Maybe ModuleCmt, [ArtDecl])
-type ModuleCmt = [Text]
-type ArtDecl = (Maybe ArtCmt, Text)
-type ArtCmt = [Text]
+type ModuleDecl = (Maybe DocComment, [ArtDecl])
+type ArtDecl = (Maybe DocComment, Text)
 
 
 moduleDecl :: Parser ModuleDecl
-moduleDecl = do
-  moduCmt <- docComments
-  arts    <- manyTill artifactDecl eof
+moduleDecl = lexeme $ do
+  sc
+  moduCmt <- optional docComment
+  arts    <- manyTill (scWithSemiColons >> artifactDecl) eof
   return (moduCmt, arts)
 
 artifactDecl :: Parser ArtDecl
-artifactDecl = do
-  artCmt <- immediateDocComments
+artifactDecl = lexeme $ do
+  artCmt <- optional immediateDocComment
   (eof >> empty) <|> do
     artBody <- takeWhileP (Just "artifact body")
                           (not . flip elem (";{" :: [Char]))

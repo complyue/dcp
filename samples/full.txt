@@ -1,25 +1,16 @@
 
 # whitespaces at start-of-file
 
-;
-; # semicolons are allowed here and otherwheres
-;
-
 {#
  # this is non-doc, block comment to be dropped in parsing and 
  # doesn't render the module as without module doc
  #}
 
-;
-; # semicolons are allowed here and otherwheres
-;
-
 # this is non-doc, line comment to be dropped in parsing and 
 # doesn't render the module as without module doc
 
-;
-; # semicolons are allowed here and otherwheres
-;
+# no semicolon should be placed before module's doc comment,
+# or it'll be parsed as mis-placed doc comment for some artifact
 
 {##
  # this is the module's doc comment
