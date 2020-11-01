@@ -139,12 +139,14 @@ moduleDecl = lexeme $ do
 artifactDecl :: Parser ArtDecl
 artifactDecl = lexeme $ do
   artCmt <- optional immediateDocComment
-  (eof >> empty) <|> do
-    artBody <- takeWhileP (Just "artifact body")
-                          (not . flip elem (";{" :: [Char]))
-    if T.null $ T.strip artBody
-      then empty -- this is not possible in real cases
-      else return (artCmt, artBody)
+  atEnd >>= \case
+    True  -> empty
+    False -> do
+      artBody <- takeWhileP (Just "artifact body")
+                            (not . flip elem (";{" :: [Char]))
+      if T.null $ T.strip artBody
+        then empty -- this is not possible in real cases
+        else return (artCmt, artBody)
 
 
 parseModule :: Text -> ModuleDecl
