@@ -134,19 +134,19 @@ moduleDecl = lexeme $ do
   sc
   moduCmt <- optional docComment
   arts    <- manyTill (scWithSemiColons >> artifactDecl) eof
-  return (moduCmt, arts)
+  return (moduCmt, concat arts)
 
-artifactDecl :: Parser ArtDecl
+artifactDecl :: Parser [ArtDecl]
 artifactDecl = lexeme $ do
   artCmt <- optional immediateDocComment
   atEnd >>= \case
-    True  -> empty
+    True  -> return []
     False -> do
       artBody <- takeWhileP (Just "artifact body")
                             (not . flip elem (";{" :: [Char]))
       if T.null $ T.strip artBody
         then empty -- this is not possible in real cases
-        else return (artCmt, artBody)
+        else return [(artCmt, artBody)]
 
 
 parseModule :: Text -> ModuleDecl
