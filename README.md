@@ -2,11 +2,12 @@
 
 This is a minimum working example tinkering with the doc comment parsing idea originally described at https://github.com/mrkkrp/megaparsec/issues/428 ,
 
-As explored with this repository, it's found that Megaparsec's 
+As explored with this repository, it's found that Megaparsec's
 trailing-space-consuming idiom is much nicer than leading-space-consuming.
 
-One issue remains is https://github.com/mrkkrp/megaparsec/issues/429 that
-how doc comment at eof can be gracefully dropped as white spaces.
+And an followup issue https://github.com/mrkkrp/megaparsec/issues/429 that
+how doc comment at eof can be gracefully dropped as white spaces. It is solved
+with help from Olaf.
 
 Used to reproduce issues:
 

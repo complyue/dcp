@@ -13,5 +13,5 @@ main = do
   !src <- getContents
   let moduDecl = parseModule $ T.pack src
 
-  putStrLn $ " * Module parsed as: " <> show moduDecl
+  putStrLn $ " * Module parsed as:\n" <> show moduDecl
 

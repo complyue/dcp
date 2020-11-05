@@ -125,32 +125,43 @@ isIdentChar :: Char -> Bool
 isIdentChar c = c == '_' || c == '\'' || Char.isAlphaNum c
 
 
-type ModuleDecl = (Maybe DocComment, [ArtDecl])
+manyTill' :: Monoid a => Parser a -> Parser end -> Parser a
+manyTill' p end = go where go = (mempty <$ end) <|> liftA2 mappend p go
+
+
 type ArtDecl = (Maybe DocComment, Text)
+data ModuleDecl m = (Applicative m, Monoid (m ArtDecl)) =>
+  ModuleDecl (Maybe DocComment) (m ArtDecl)
 
-
-moduleDecl :: Parser ModuleDecl
+moduleDecl :: (Applicative m, Monoid (m ArtDecl)) => Parser (ModuleDecl m)
 moduleDecl = lexeme $ do
   sc
   moduCmt <- optional docComment
-  arts    <- manyTill (scWithSemiColons >> artifactDecl) eof
-  return (moduCmt, arts)
+  arts    <- manyTill' (scWithSemiColons >> artifactDecl) eof
+  return $ ModuleDecl moduCmt arts
 
-artifactDecl :: Parser ArtDecl
+artifactDecl :: (Applicative m, Monoid (m ArtDecl)) => Parser (m ArtDecl)
 artifactDecl = lexeme $ do
   artCmt <- optional immediateDocComment
-  atEnd >>= \case
-    True  -> empty
-    False -> do
+  choice
+    [ eof >> return mempty
+    , do
       artBody <- takeWhileP (Just "artifact body")
                             (not . flip elem (";{" :: [Char]))
-      if T.null $ T.strip artBody
-        then empty -- this is not possible in real cases
-        else return (artCmt, artBody)
+      return $ pure (artCmt, artBody)
+    ]
 
 
-parseModule :: Text -> ModuleDecl
+parseModule :: Text -> ModuleDecl []
 parseModule !moduSrc = case parse moduleDecl "" moduSrc of
   Left  e -> error $ errorBundlePretty e
   Right r -> r
 
+instance Show (ModuleDecl []) where
+  show (ModuleDecl docCmt mArt) =
+    "\n ** module:"
+      <> "\n  * doc:\n"
+      <> show docCmt
+      <> "\n  * arts:\n"
+      <> show mArt
+      <> "\n"
