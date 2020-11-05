@@ -40,3 +40,32 @@ art = do
     body <- takeWhileP (Just "artifact body") (/= ';')
     void $ optional $ char ';'
     return $ T.stripEnd body
+
+
+
+many' :: (Monoid result, Alternative parser) => parser result -> parser result
+many' p = some' p <|> pure mempty
+
+some' :: (Monoid result, Alternative parser) => parser result -> parser result
+some' p = liftA2 mappend p (many' p)
+
+
+
+many'1
+  :: (Monoid result, Alternative parser, Monoid parser)
+  => parser result
+  -> parser result
+many'1 p = some'1 p <|> pure mempty
+
+some'1
+  :: (Monoid result, Alternative parser, Monoid parser)
+  => parser result
+  -> parser result
+some'1 p = liftA2 mappend p (many'1 p)
+
+
+instance Monoid result, Alternative parser, Applicative parser =>
+  Monoid (parser result) where 
+    mempty = pure mempty
+    (<>) = liftA2 (<>)
+
